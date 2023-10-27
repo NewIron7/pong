@@ -200,7 +200,11 @@ const PongGame: React.FC = () => {
         }, 1000 / framePerSecond);
 
         // Clear the interval when the component unmounts
-        return () => clearInterval(loop);
+        return () => {
+            canvas.removeEventListener("mousemove", handleMouseMove);
+            clearInterval(loop);
+        };
+        
     }
   }, [canvasRef]);
 
