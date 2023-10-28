@@ -1,23 +1,15 @@
 import React, { useEffect, useRef } from 'react';
+import * as Rendering from './Rendering';
+import * as gameObjects from './gameObjects';
 
 const PongGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Define your functions here
-  const drawRect = (x: number, y: number, w: number, h: number, color: string, ctx: CanvasRenderingContext2D) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, w, h);
-  };
-
-  const drawArc = (x: number, y: number, r: number, color: string, ctx: CanvasRenderingContext2D) => {
-    if (ctx) {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2, true);
-        ctx.closePath();
-        ctx.fill();
-    }
-  };
+  const drawRect = Rendering.drawRect;
+  const drawArc = Rendering.drawArc;
+  const drawNet = Rendering.drawNet;
+  const drawText = Rendering.drawText;
+  const collision = Rendering.collision;
 
   const resetBall = (canvas: HTMLCanvasElement, ball: any) => {
     if (canvas) {
@@ -26,36 +18,6 @@ const PongGame: React.FC = () => {
         ball.velocityX = -ball.velocityX;
         ball.speed = 7;
     }
-  };
-
-  const drawNet = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, net: any) => {
-    if (ctx) {
-        for (let i = 0; i <= canvas.height; i += 15) {
-            drawRect(net.x, net.y + i, net.width, net.height, net.color, ctx);
-        }
-    }
-  };
-
-  const drawText = (text: number, x: number, y: number, ctx: CanvasRenderingContext2D) => {
-    if (ctx) {
-        ctx.fillStyle = "#FFF";
-        ctx.font = "75px fantasy";
-        ctx.fillText(text.toString(), x, y);
-    }
-  };
-
-  const collision = (b: any, p: any) => {
-        p.top = p.y;
-        p.bottom = p.y + p.height;
-        p.left = p.x;
-        p.right = p.x + p.width;
-
-        b.top = b.y - b.radius;
-        b.bottom = b.y + b.radius;
-        b.left = b.x - b.radius;
-        b.right = b.x + b.radius;
-
-        return p.left < b.right && p.top < b.bottom && p.right > b.left && p.bottom > b.top;
   };
 
   const update = (
@@ -78,7 +40,7 @@ const PongGame: React.FC = () => {
     
     // computer plays for itself, and we must be able to beat it
     // simple AI
-    com.y += ((ball.y - (com.y + com.height/2)))*0.1;
+    com.y += ((ball.y - (com.y + com.height/2)))*0.005;
     
     // when the ball collides with bottom and top walls we inverse the y velocity.
     if(ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height){
@@ -147,45 +109,11 @@ const PongGame: React.FC = () => {
     if (canvas) {
         const ctx = canvas.getContext('2d')!;
 
-        // Ball object
-        const ball = {
-            x : canvas.width/2,
-            y : canvas.height/2,
-            radius : 10,
-            velocityX : 5,
-            velocityY : 5,
-            speed : 7,
-            color : "WHITE"
-        }
+        const ball: gameObjects.Ball = gameObjects.initializeBall(canvas);
+        const user: gameObjects.Paddle = gameObjects.initializeUser(canvas);
+        const com: gameObjects.Paddle = gameObjects.initializeCom(canvas);
+        const net: gameObjects.Net = gameObjects.initializeNet(canvas);
 
-        // User Paddle
-        const user = {
-            x : 0, // left side of canvas
-            y : (canvas.height - 100)/2, // -100 the height of paddle
-            width : 10,
-            height : 100,
-            score : 0,
-            color : "WHITE"
-        }
-
-        // COM Paddle
-        const com = {
-            x : canvas.width - 10, // - width of paddle
-            y : (canvas.height - 100)/2, // -100 the height of paddle
-            width : 10,
-            height : 100,
-            score : 0,
-            color : "WHITE"
-        }
-
-        // NET
-        const net = {
-            x : (canvas.width - 2)/2,
-            y : 0,
-            height : 10,
-            width : 2,
-            color : "WHITE"
-        }
 
         const handleMouseMove = (evt: MouseEvent) => {
             const rect = canvas.getBoundingClientRect();
