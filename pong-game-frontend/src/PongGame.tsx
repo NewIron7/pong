@@ -1,104 +1,61 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as Rendering from './Rendering';
 import * as gameObjects from './gameObjects';
+import { io, Socket } from 'socket.io-client';
 
 const PongGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const [roomId, setRoomId] = useState(''); // Add this state variable
+
+  // Create the WebSocket connection here
+  const socket: Socket = io('http://localhost:3000'); // Replace with your server URL
+
+  // Add event listeners for socket events
+  socket.on('connect', () => {
+    console.log('Connected to the server');
+  });
+  
+  const handleJoined = () => {
+    if (socket && roomId) {
+      socket.emit('joinPong', { roomId }, (response: any) => {
+        if (!response)
+          console.log('Room full');
+        else
+          console.log('You joined a room:', response);
+      });
+    }
+  };
 
   const drawRect = Rendering.drawRect;
   const drawArc = Rendering.drawArc;
   const drawNet = Rendering.drawNet;
   const drawText = Rendering.drawText;
-  const collision = Rendering.collision;
-
-  const resetBall = (canvas: HTMLCanvasElement, ball: any) => {
-    if (canvas) {
-        ball.x = canvas.width / 2;
-        ball.y = canvas.height / 2;
-        ball.velocityX = -ball.velocityX;
-        ball.speed = 7;
-    }
-  };
-
-  const update = (
-    canvas: HTMLCanvasElement,
-    ball: any, 
-    user: any, 
-    com: any ) => {
-    // change the score of players, if the ball goes to the left "ball.x<0" computer win, else if "ball.x > canvas.width" the user win
-    if( ball.x - ball.radius < 0 ){
-        com.score++;
-        resetBall(canvas, ball);
-    }else if( ball.x + ball.radius > canvas.width){
-        user.score++;
-        resetBall(canvas, ball);
-    }
-    
-    // the ball has a velocity
-    ball.x += ball.velocityX;
-    ball.y += ball.velocityY;
-    
-    // computer plays for itself, and we must be able to beat it
-    // simple AI
-    com.y += ((ball.y - (com.y + com.height/2)))*0.005;
-    
-    // when the ball collides with bottom and top walls we inverse the y velocity.
-    if(ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height){
-        ball.velocityY = -ball.velocityY;
-    }
-    
-    // we check if the paddle hit the user or the com paddle
-    let player = (ball.x + ball.radius < canvas.width/2) ? user : com;
-    
-    // if the ball hits a paddle
-    if(collision(ball,player)){
-        // play sound
-        // we check where the ball hits the paddle
-        let collidePoint = (ball.y - (player.y + player.height/2));
-        // normalize the value of collidePoint, we need to get numbers between -1 and 1.
-        // -player.height/2 < collide Point < player.height/2
-        collidePoint = collidePoint / (player.height/2);
-        
-        // when the ball hits the top of a paddle we want the ball, to take a -45degees angle
-        // when the ball hits the center of the paddle we want the ball to take a 0degrees angle
-        // when the ball hits the bottom of the paddle we want the ball to take a 45degrees
-        // Math.PI/4 = 45degrees
-        let angleRad = (Math.PI/4) * collidePoint;
-        
-        // change the X and Y velocity direction
-        let direction = (ball.x + ball.radius < canvas.width/2) ? 1 : -1;
-        ball.velocityX = direction * ball.speed * Math.cos(angleRad);
-        ball.velocityY = ball.speed * Math.sin(angleRad);
-        
-        // speed up the ball everytime a paddle hits it.
-        ball.speed += 0.1;
-    }
-  };
 
   const render = (
         ctx: CanvasRenderingContext2D,
         canvas: HTMLCanvasElement,
         ball: any, 
-        user: any, 
-        com: any, 
+        user1: any, 
+        user2: any, 
         net: any ) => {
     // clear the canvas
     drawRect(0, 0, canvas.width, canvas.height, "#000", ctx);
     
     // draw the user score to the left
-    drawText(user.score,canvas.width/4,canvas.height/5, ctx);
+    drawText(user1.score,canvas.width/4,canvas.height/5, ctx);
     
     // draw the COM score to the right
-    drawText(com.score,3*canvas.width/4,canvas.height/5, ctx);
+    drawText(user2.score,3*canvas.width/4,canvas.height/5, ctx);
     
     // draw the net
     drawNet(ctx, canvas, net);
 
     // draw the user's paddle
-    drawRect(user.x, user.y, user.width, user.height, user.color, ctx);
+    drawRect(user1.x, user1.y, user1.width, user1.height, user1.color, ctx);
     
     // draw the COM's paddle
-    drawRect(com.x, com.y, com.width, com.height, com.color, ctx);
+    drawRect(user2.x, user2.y, user2.width, user2.height, user2.color, ctx);
     
     // draw the ball
     drawArc(ball.x, ball.y, ball.radius, ball.color, ctx);
@@ -109,41 +66,90 @@ const PongGame: React.FC = () => {
     if (canvas) {
         const ctx = canvas.getContext('2d')!;
 
+        let pos: number;
+        let start: boolean = false;
         const ball: gameObjects.Ball = gameObjects.initializeBall(canvas);
-        const user: gameObjects.Paddle = gameObjects.initializeUser(canvas);
-        const com: gameObjects.Paddle = gameObjects.initializeCom(canvas);
+        let user1: gameObjects.Paddle = gameObjects.initializeUser(canvas);
+        let user2: gameObjects.Paddle = gameObjects.initializeCom(canvas);
         const net: gameObjects.Net = gameObjects.initializeNet(canvas);
 
+        // Add event listeners for socket events
+        socket.on('startPong', (position) => {
+          console.log('Received startPong event with position:', position);
+          pos = position;
+          start = true;
+          return position;
+        });
+
+        // Add an event listener for 'updatePong' event
+        socket.on('updatePong', (data) => {
+          if (!start)
+            return ;
+
+          socket.emit('updatePaddle', {paddleY: pos ? user2.y : user1.y} );
+          // Process the 'updatePong' event data received from the server
+          // Update the game state based on the data
+          // For example, update ball position, player positions, and redraw the canvas
+          console.log('Received updatePong event with data:', data);
+
+          // Update the game state and render it
+          // You can access and update ball, user, com, net, etc. here
+          // For example:
+          ball.x = data.ball.x;
+          ball.y = data.ball.y;
+          user1 = data.user1;
+          user2 = data.user2;
+
+          return (data);
+        });
 
         const handleMouseMove = (evt: MouseEvent) => {
+            if (!start)
+              return ;
             const rect = canvas.getBoundingClientRect();
-            user.y = evt.clientY - rect.top - user.height / 2;
+            if (pos)
+              user2.y = evt.clientY - rect.top - user2.height / 2;
+            else
+              user1.y = evt.clientY - rect.top - user1.height / 2;
         };
 
         canvas.addEventListener("mousemove", handleMouseMove);
         const framePerSecond = 50;
         const loop = setInterval(() => {
-            update(canvas, ball, user, com);
-            render(ctx, canvas, ball, user, com, net);
+            render(ctx, canvas, ball, user1, user2, net);
+        //}, 1000);
         }, 1000 / framePerSecond);
 
         // Clear the interval when the component unmounts
         return () => {
             canvas.removeEventListener("mousemove", handleMouseMove);
             clearInterval(loop);
+
+            // Close the WebSocket connection
+            socket.disconnect();
         };
         
     }
   }, [canvasRef]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      id="pong"
-      width="600"
-      height="400"
-      style={{ border: '2px solid #FFF', position: 'absolute', margin: 'auto', top: 0, right: 0, left: 0, bottom: 0 }}
-    />
+    <div>
+      <input
+        type="text"
+        placeholder="Enter Room ID"
+        value={roomId}
+        onChange={(e) => setRoomId(e.target.value)}
+      />
+      <button onClick={handleJoined}>Join Room</button>
+      <canvas
+        ref={canvasRef}
+        id="pong"
+        width="600"
+        height="400"
+        style={{ border: '2px solid #FFF', position: 'absolute', margin: 'auto', top: 0, right: 0, left: 0, bottom: 0 }}
+      />
+    </div>
+    
   );
 };
 

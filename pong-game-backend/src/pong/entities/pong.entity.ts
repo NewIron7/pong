@@ -17,14 +17,11 @@ export class Paddle {
     color: string;
 }
 
-export class Pong {
-    ball: Ball;
-    users: Record<string, Paddle>;
-}
-
 export class Room {
+    start: boolean;
+    id: string;
     users: string[];
-    pong: Pong;
+    ball: Ball;
 }
 
 export const initializeBall = (width: number, height: number): Ball => {
