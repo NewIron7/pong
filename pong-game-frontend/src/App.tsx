@@ -1,4 +1,4 @@
-import PongGame from './PongGame';
+import PongGame from './components/game/PongGame';
 
 function App() {
   return (

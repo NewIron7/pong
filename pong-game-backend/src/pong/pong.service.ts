@@ -13,15 +13,14 @@ export class PongService {
   height: number = 400;
 
   rooms: Record<number, Room> = {};
-  clientToRoom = {};
   clientToPaddle = {};
+  clientToRoom = {};
 
   deleteClient(client: Socket) {
-    const roomId = this.getClientRoom(client.id);
-    if (!roomId)
-      return ;
-    let room = this.rooms[roomId];
-    console.log(this.rooms);
+    let room = this.getClientRoom(client);
+    if (!room)
+      return null;
+    let endGame: string = null;
     if (room.start)
     {
       let pos: number;
@@ -30,25 +29,39 @@ export class PongService {
       else
         pos = 0;
 
-      room = {
+      this.rooms[room.id] = {
         start: false,
         id: room.id,
         users: [room.users[pos]],
         ball: initializeBall(this.width, this.height),
       }
+      endGame = room.id;
     }
     else
-      delete this.rooms[roomId];
+      delete this.rooms[room.id];
 
     delete this.clientToPaddle[client.id];
     delete this.clientToRoom[client.id];
     console.log(this.rooms);
+    return endGame;
   }
 
-  join(client: Socket, roomId: string) {
+  async join(server: Server, client: Socket, roomId: string) {
 
-    console.log(client.id);
-    console.log(roomId);
+    console.log('Client ', client.id, 'join room: ', roomId);
+
+    const connectedSockets = server.sockets.adapter.rooms.get(roomId);
+    const clientRooms = Array.from(client.rooms.values()).filter(
+      (r) => r !== client.id
+    );
+
+    if (
+      clientRooms.length > 0 ||
+      (connectedSockets && connectedSockets.size === 2)
+    )
+      return (null);
+
+    
     if (!this.rooms[roomId]) {
       this.rooms[roomId] = {
         start: false,
@@ -57,22 +70,11 @@ export class PongService {
         ball: initializeBall(this.width, this.height),
       };
     }
-    else if (this.rooms[roomId].users.length === 2)
-    {
-      console.log('This room is full');
-      return (null);
-    }
-    else if (this.rooms[roomId].users[0] === client.id)
-    {
-      console.log('Room already joined');
-      return (this.rooms[roomId]);
-    }
 
     this.rooms[roomId].users.push(client.id);
-
-    this.clientToRoom[client.id] = roomId;
     
-    //client.join(roomId);
+    await client.join(roomId);
+    this.clientToRoom[client.id] = roomId;
 
     if (this.rooms[roomId].users.length === 2)
     {
@@ -87,8 +89,17 @@ export class PongService {
     return this.rooms[roomId];
   }
 
-  getClientRoom(clientId: string) {
-    return this.clientToRoom[clientId];
+  getClientRoom(client: Socket) {
+    const clientRooms = Array.from(client.rooms.values()).filter( (r) => r !== client.id);
+    const gameRoom = clientRooms && clientRooms[0];
+    if (!gameRoom)
+    {
+      if (this.clientToRoom[client.id])
+        return this.rooms[this.clientToRoom[client.id]];
+      return null;
+    }
+      
+    return this.rooms[gameRoom];
   }
 
   getClientPaddle(clientId: string) {
@@ -118,6 +129,17 @@ export class PongService {
     return (paddleY);
   }
 
+  update(client) {
+    const room = this.getClientRoom(client);
+    if (!room)
+      return null;
+    const ball = room.ball;
+    const user1: Paddle = this.getClientPaddle(room.users[0]);
+    const user2: Paddle = this.getClientPaddle(room.users[1]);
+
+    return {ball: ball, user1: user1, user2: user2};
+  }
+
   resetBall(room: Room) {
     room.ball.x = this.width / 2;
     room.ball.y = this.height / 2;
@@ -139,6 +161,20 @@ export class PongService {
     const bright = b.x + b.radius;
 
     return pleft < bright && ptop < bbottom && pright > bleft && pbottom > btop;
+  }
+
+  started(client: Socket) {
+    const room = this.getClientRoom(client);
+    if (!room)
+      return null;
+    if (room.start) {
+      if (client.id === room.users[0])
+        return (0);
+      else
+        return (1);
+    }
+    else
+      return null;
   }
 
 }

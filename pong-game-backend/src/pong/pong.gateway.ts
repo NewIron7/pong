@@ -1,4 +1,4 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, ConnectedSocket } from '@nestjs/websockets';
+import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, ConnectedSocket, OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
 import { PongService } from './pong.service';
 import { Server, Socket } from 'socket.io'
 import { Paddle } from './entities/pong.entity';
@@ -8,13 +8,11 @@ import { Paddle } from './entities/pong.entity';
     origin: '*',
   },
 })
-export class PongGateway {
+export class PongGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly pongService: PongService) {
-    this.gameLoop();
-  }
+  constructor(private readonly pongService: PongService) {}
 
   gameLoop = () => {
     
@@ -72,10 +70,10 @@ export class PongGateway {
           // speed up the ball everytime a paddle hits it.
           ball.speed += 0.1;
         }
-        this.server.to(room.users[0]).emit('updatePong',
-            {ball: ball, user1: user1, user2:user2});
-        this.server.to(room.users[1]).emit('updatePong',
-            {ball: ball, user1: user1, user2:user2});
+        // this.server.to(room.id).emit('updatePong',
+        //     {ball: ball, user1: user1, user2:user2});
+        // this.server.to(room.users[1]).emit('updatePong',
+        //     {ball: ball, user1: user1, user2:user2});
       }
 
       
@@ -88,44 +86,75 @@ export class PongGateway {
     }, 1000 / 60); // 60 frames per second
   }
 
+  onGatewayInit() {
+    console.log('Gateway init');
+  }
+
+  afterInit(){
+    console.log('Initialized');
+    this.gameLoop();
+  }
+
+  handleConnection(
+    @ConnectedSocket() client: Socket){
+    console.log(`client connected ${client.id}`);
+  }
+
+  handleDisconnect(
+    @ConnectedSocket() client: Socket){
+    console.log(`client disconnected ${client.id}`);
+    const roomId = this.pongService.deleteClient(client);
+    if (roomId) {
+      this.server.to(roomId).emit('alone', { id: client.id });
+    }
+    
+  }
+
+  @SubscribeMessage('leaveRoom')
+  leave(
+    @ConnectedSocket() client: Socket, ) {
+      console.log(`client leaving room ${client.id}`);
+      const roomId = this.pongService.deleteClient(client);
+      if (roomId) {
+        this.server.to(roomId).emit('alone', { id: client.id });
+      }
+    }
+
   @SubscribeMessage('joinPong')
-  join(
+  async join(
     @ConnectedSocket() client: Socket,
     @MessageBody('roomId') roomId: string,) {
     
-    const tmp = this.pongService.join(client, roomId);
+    const tmp = await this.pongService.join(this.server, client, roomId);
 
-    if (tmp && tmp.start)
-    {
-      this.server.to(tmp.users[0]).emit('startPong', 0);
-      this.server.to(tmp.users[1]).emit('startPong', 1);
-    }
+    if (tmp)
+      client.emit("roomJoined");
+    else
+      client.emit("roomJoinError", {error: "Room full, choose another room to play !"});
+
     return tmp;
   }
 
-  @SubscribeMessage('updatePaddle')
+  @SubscribeMessage('started')
+  started(
+    @ConnectedSocket() client: Socket, ) {
+    
+    const pos = this.pongService.started(client);
+    if (pos !== null)
+      client.emit('startPong', { pos: pos });
+  }
+
+  @SubscribeMessage('updateGame')
   update(
     @ConnectedSocket() client: Socket,
     @MessageBody('paddleY') paddleY: number,) {
     
-    return this.pongService.updatePos(client.id, paddleY);
-  }
+    this.pongService.updatePos(client.id, paddleY);
 
-  @SubscribeMessage('disconnect')
-  hangUp(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: string,){
+    const up = this.pongService.update(client);
     
-    this.pongService.deleteClient(client);
-  }
-
-  @SubscribeMessage('disconnecting')
-  hangingUp(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: string,){
-
-    this.pongService.deleteClient(client);
-
+    if (up)
+      client.emit("update", { pong: up });
   }
 
 }

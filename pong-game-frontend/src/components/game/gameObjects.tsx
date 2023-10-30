@@ -17,7 +17,7 @@ export interface Paddle {
     color: string;
 }
   
-  export interface Net {
+export interface Net {
     x: number;
     y: number;
     height: number;
@@ -26,10 +26,10 @@ export interface Paddle {
 }
   
   // Initialize game objects
-export const initializeBall = (canvas: HTMLCanvasElement): Ball => {
+export const initializeBall = (width: number, height: number): Ball => {
     return {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
+      x: width / 2,
+      y: height / 2,
       radius: 10,
       velocityX: 5,
       velocityY: 5,
@@ -38,10 +38,10 @@ export const initializeBall = (canvas: HTMLCanvasElement): Ball => {
     };
 };
   
-export const initializeUser = (canvas: HTMLCanvasElement): Paddle => {
+export const initializeUser = (height: number): Paddle => {
     return {
       x: 0,
-      y: (canvas.height - 100) / 2,
+      y: (height - 100) / 2,
       width: 10,
       height: 100,
       score: 0,
@@ -49,20 +49,20 @@ export const initializeUser = (canvas: HTMLCanvasElement): Paddle => {
     };
 };
   
-export const initializeCom = (canvas: HTMLCanvasElement): Paddle => {
+export const initializeCom = (width: number, height: number): Paddle => {
   return {
-      x: canvas.width - 10,
-      y: (canvas.height - 100) / 2,
+      x: width - 10,
+      y: (height - 100) / 2,
       width: 10,
       height: 100,
       score: 0,
-      color: "WHITE",
+      color: "RED",
     };
 };
   
-export const initializeNet = (canvas: HTMLCanvasElement): Net => {
+export const initializeNet = (width: number): Net => {
     return {
-      x: (canvas.width - 2) / 2,
+      x: (width - 2) / 2,
       y: 0,
       height: 10,
       width: 2,
