@@ -102,22 +102,17 @@ export class PongGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   handleDisconnect(
     @ConnectedSocket() client: Socket){
+    
+    this.pongService.deleteClient(this.server, client);
+
     console.log(`client disconnected ${client.id}`);
-    const roomId = this.pongService.deleteClient(client);
-    if (roomId) {
-      this.server.to(roomId).emit('alone', { id: client.id });
-    }
     
   }
 
   @SubscribeMessage('leaveRoom')
-  leave(
+  async leave(
     @ConnectedSocket() client: Socket, ) {
-      console.log(`client leaving room ${client.id}`);
-      const roomId = this.pongService.deleteClient(client);
-      if (roomId) {
-        this.server.to(roomId).emit('alone', { id: client.id });
-      }
+      await this.pongService.deleteClient(this.server, client);
     }
 
   @SubscribeMessage('joinPong')
@@ -152,9 +147,11 @@ export class PongGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     this.pongService.updatePos(client.id, paddleY);
 
     const up = this.pongService.update(client);
+
+    const room = this.pongService.getClientRoom(client);
     
     if (up)
-      client.emit("update", { pong: up });
+      client.emit("update", { pong: up, started: room.start });
   }
 
 }

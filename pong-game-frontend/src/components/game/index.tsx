@@ -4,6 +4,7 @@ import * as gameObjects from "./gameObjects";
 import gameService from "../../services/gameService";
 import socketService from "../../services/socketService";
 import gameContext from "../../gameContext";
+import { Socket } from "socket.io-client";
 
 export type IPlayPong = {
     ball: gameObjects.Ball;
@@ -71,8 +72,15 @@ export function Game(props: IGameProps) {
 
         if (socketService.socket) {
             gameService.updateGame(socketService.socket, paddleY);
-            gameService.onUpdateGame(socketService.socket, (newPong) => {
-                if (!newPong.user1 || !newPong.user2)
+           
+        }
+    };
+
+    const onUpdateGame = () => {
+        if (socketService.socket)
+        {
+            gameService.onUpdateGame(socketService.socket, (newPong, started) => {
+                if (!newPong.user1 || !newPong.user2 || !started)
                 {
                     setPong({
                         ball: gameObjects.initializeBall(width, height),
@@ -81,7 +89,20 @@ export function Game(props: IGameProps) {
                     });
                 }
                 else
+                {
                     setPong(newPong);
+                }
+            });
+        }
+        
+    };
+
+    const checkKicked = () => {
+        if (socketService.socket) {
+            gameService.kicked(socketService.socket, () => {
+                alert("You opponent got disconnected");
+                setInRoom(false);
+                setStarted(false);
             });
         }
     };
@@ -89,20 +110,13 @@ export function Game(props: IGameProps) {
     const startGame = () => {
         if (socketService.socket) {
             gameService.started(socketService.socket, (newPos) => {
-                console.log(newPos);
                 setPos(newPos);
                 setStarted(true);
-            });
-        }
-    };
-
-    const checkAlone = () => {
-        if (socketService.socket) {
-            gameService.alone(socketService.socket, (id) => {
-                setStarted(false);
-                setInRoom(false);
-                if (socketService.socket)
-                    gameService.leave(socketService.socket);
+                setPong({
+                    ball: gameObjects.initializeBall(width, height),
+                    user1: gameObjects.initializeUser(height),
+                    user2: gameObjects.initializeCom(width, height),
+                });
             });
         }
     };
@@ -115,7 +129,6 @@ export function Game(props: IGameProps) {
             rect = canvas.getBoundingClientRect();
         else
             return ;
-        console.log(pos);
         if (pos)
           pong.user2.y = evt.clientY - rect.top - pong.user2.height / 2;
         else
@@ -123,7 +136,10 @@ export function Game(props: IGameProps) {
     };
   
     useEffect(() => {
-    
+
+        checkKicked();
+        onUpdateGame();
+        
         //setCanvas(canvasRef.current);
         canvas = canvasRef.current;
         if (canvas) {
@@ -131,7 +147,6 @@ export function Game(props: IGameProps) {
 
             canvas.addEventListener("mousemove", handleMouseMove);
 
-            checkAlone();
             const framePerSecond = 25;
             const loop = setInterval(() => {
                 if (!isStarted)
@@ -149,10 +164,14 @@ export function Game(props: IGameProps) {
                 if (canvas)
                     canvas.removeEventListener("mousemove", handleMouseMove);
                 clearInterval(loop);
+                if (socketService.socket)
+                    gameService.cleanUp(socketService.socket);
             };
             
         }
-      }, [canvasRef, isStarted, pong, pos]);
+    }, [canvasRef, isStarted, isInRoom, pong, pos]);
+
+    
 
     return (
         <div>

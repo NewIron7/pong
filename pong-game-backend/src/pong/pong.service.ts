@@ -7,8 +7,6 @@ import { Server, Socket } from 'socket.io'
 @Injectable()
 export class PongService {
 
-  //nbRoom: number = 0;
-
   width: number = 600;
   height: number = 400;
 
@@ -16,34 +14,42 @@ export class PongService {
   clientToPaddle = {};
   clientToRoom = {};
 
-  deleteClient(client: Socket) {
-    let room = this.getClientRoom(client);
+  deleteClient(server: Server, client: Socket) {
+    const room = this.getClientRoom(client);
     if (!room)
-      return null;
-    let endGame: string = null;
-    if (room.start)
+      return ;
+    if (room.users.length === 2)
     {
-      let pos: number;
-      if (room.users[0] === client.id)
-        pos = 1;
-      else
-        pos = 0;
+      // let pos: number;
+      // if (room.users[0] === client.id)
+      //   pos = 1;
+      // else
+      //   pos = 0;
 
-      this.rooms[room.id] = {
-        start: false,
-        id: room.id,
-        users: [room.users[pos]],
-        ball: initializeBall(this.width, this.height),
-      }
-      endGame = room.id;
+      // this.rooms[room.id] = {
+      //   start: false,
+      //   id: room.id,
+      //   users: [room.users[pos]],
+      //   ball: initializeBall(this.width, this.height),
+      // }
+      // this.clientToPaddle[room.users[pos]] = initializeUser(this.height);
+
+      const opponentId = client.id === room.users[0] ? room.users[1] : room.users[0];
+      delete this.clientToPaddle[opponentId];
+      delete this.clientToRoom[opponentId];
+
+      server.sockets.sockets.get(opponentId)?.emit("kicked");
+      server.sockets.sockets.get(opponentId)?.leave(room.id);
+      console.log(`client leaving room ${opponentId}`);
+      
     }
-    else
-      delete this.rooms[room.id];
-
+      
     delete this.clientToPaddle[client.id];
     delete this.clientToRoom[client.id];
-    console.log(this.rooms);
-    return endGame;
+
+    client.leave(room.id);
+    delete this.rooms[room.id];
+    console.log(`client leaving room ${client.id}`);
   }
 
   async join(server: Server, client: Socket, roomId: string) {

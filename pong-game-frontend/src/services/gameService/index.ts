@@ -15,8 +15,8 @@ class GameService {
         socket.emit("updateGame", { paddleY: paddleY });
     }
 
-    public onUpdateGame(socket: Socket, listener: (pong: IPlayPong) => void) {
-        socket.on("update", ( { pong } ) => listener(pong));
+    public onUpdateGame(socket: Socket, listener: (pong: IPlayPong, started: boolean) => void) {
+        socket.on("update", ( { pong, started } ) => listener(pong, started));
     }
 
     public started(socket: Socket, listener: (pos: boolean) => void) {
@@ -24,12 +24,20 @@ class GameService {
         socket.on("startPong", ( { pos } ) => listener(pos));
     }
 
-    public alone(socket: Socket, listener: (id: string) => void) {
-        socket.on("alone", ({ id }) => listener(id));
+    public async leave(socket: Socket): Promise<boolean> {
+        return new Promise(() => {
+            socket.emit("leaveRoom");
+        });
     }
 
-    public leave(socket: Socket) {
-        socket.emit("leaveRoom");
+    public kicked(socket: Socket, listener: () => void) {
+        socket.on("kicked", () => listener());
+    }
+
+    public cleanUp(socket: Socket) {
+        socket.off("update");
+        socket.off("started");
+        socket.off("kicked");
     }
 
 }
