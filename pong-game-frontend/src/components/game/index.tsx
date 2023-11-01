@@ -175,7 +175,7 @@ export function Game(props: IGameProps) {
 
     return (
         <div>
-            <div>{!isStarted && <h3>Waiting for an opponant</h3> }</div>
+            <div>{!isStarted && <h3>Waiting for an opponent</h3> }</div>
             <canvas
             ref={canvasRef}
             id="pong"
